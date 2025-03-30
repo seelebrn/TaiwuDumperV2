@@ -122,43 +122,27 @@ if (!File.Exists(languageCnAssetBundle))
 
 
 
-    var manager = new AssetsManager();
+string langDir = Path.Combine(gameDirectory, "The Scroll of Taiwu_Data", "StreamingAssets", "Language_CN");
+if (!Directory.Exists(langDir))
+{
+    Console.Error.WriteLine($"Could not find StreamingAssets language folder: {langDir}!");
+    Environment.Exit(1);
+}
 
-    var bunInst = manager.LoadBundleFile(languageCnAssetBundle, true);
+Console.WriteLine("[+] Processing StreamingAssets .txt files...");
 
+foreach (var filePath in Directory.EnumerateFiles(langDir, "*.txt", SearchOption.TopDirectoryOnly))
+{
+    var fileName = Path.GetFileNameWithoutExtension(filePath); // e.g., "ui_language"
 
+    string text = File.ReadAllText(filePath);
+    string[] lines = text.Split('\n'); // Use game-like logic
+    lines = lines.Select(line => line.Replace("\\n", "\n")).ToArray();
 
-        var afileInst = manager.LoadAssetsFileFromBundle(bunInst, 0, true);
+    Console.WriteLine($"[+] Saving {fileName}...");
 
-        var afile = afileInst.file;
-        foreach (var texInfo in afile.GetAssetsOfType(AssetClassID.TextAsset))
-        {
-
-            if (!Directory.Exists(OUTPUT_DIR))
-            {
-                Directory.CreateDirectory(OUTPUT_DIR);
-            }
-
-            var texBase = manager.GetBaseField(afileInst, texInfo);
-            var name = texBase["m_Name"].AsString;
-            var text = texBase["m_Script"].AsString;
-            Console.WriteLine($"[+] saving {name}...");
-
-    
-
-    if (name == "ui_language")
+    if (fileName == "ui_language")
     {
-
-        //3rd version, simple mapping from disk.
-        string file = Path.Combine(gameDirectory, "The Scroll of Taiwu_Data", "StreamingAssets", "Language_CN" , "ui_language.txt");
-        Console.WriteLine("File name : " + file);
-        string content = File.ReadAllText(file); 
-        string[] lines = content.Split('\n');    
-        lines = lines.Select(line => line.Replace("\\n", "\n")).ToArray(); 
-        foreach(var line in lines)
-        {
-            Console.WriteLine("Line from disk : " + line);
-        }
         var entries = languageKeyToLineMapping.ToDictionary(
             kvp => kvp.Key,
             kvp => kvp.Value < lines.Length ? lines[kvp.Value].Trim() : $"<INVALID_INDEX_{kvp.Value}>"
@@ -166,90 +150,34 @@ if (!File.Exists(languageCnAssetBundle))
 
         File.WriteAllText(Path.Combine(OUTPUT_DIR, "ui_language.json"),
             JsonConvert.SerializeObject(entries, Formatting.Indented));
-
-        //2nd version, complex mapping from Assets Bundle TextAssets
-        /*        Console.WriteLine("File name : " + name);
-                var lines = Regex.Split(text, @"\r?\n"); // Safe split for Windows/Linux
-
-                var uiLanguageMap = new Dictionary<string, string>();
-
-                foreach (var kvp in languageKeyToLineMapping)
-                {
-                    string key = kvp.Key;
-                    int index = kvp.Value;
-
-                    if (index >= 0 && index < lines.Length)
-                    {
-                        string lineText = lines[index].Replace("\\n", "\n").Trim();
-                        uiLanguageMap[key] = lineText;
-                    }
-                    else
-                    {
-                        uiLanguageMap[key] = $"<INVALID_INDEX_{index}>";
-                    }
-                }
-
-                // Write to disk
-                Directory.CreateDirectory(OUTPUT_DIR);
-                File.WriteAllText(Path.Combine(OUTPUT_DIR, "ui_language.json"),
-                    JsonConvert.SerializeObject(uiLanguageMap, Formatting.Indented));*/
-
-
-        //1st version, pre-2025/03 - Loading from Assets Bundle TextAssets 
-        /*var lines = Regex.Split(text, @"\r?\n");  // safer split
-        Console.WriteLine("Line : " + lines);
-        var entries = languageKeyToLineMapping.Aggregate(new Dictionary<string, string>(), (acc, pair) =>
-        {
-            acc[pair.Key] = lines[pair.Value];
-
-            return acc;
-        });
-        File.WriteAllText(Path.Join(OUTPUT_DIR, $"{name}.json"), JsonConvert.SerializeObject(entries, Formatting.Indented));*/
-
     }
-
-    if (name == "Adventure_language")
+    else if (fileName == "Adventure_language")
     {
-        int v = 0;
-        //We're trying to avoid empty lines, so we'll count lines until the ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>" separator [before : txt, after, json] and setting it as v. Then, we iterate through the txt with v as an upper limit.
-        var lines = text.Split("\n");
-
         var jsonlines = lines.Where(x => x.Contains("LK_") && x.Contains("="));
         var dict = new Dictionary<string, string>();
+
         foreach (var l in jsonlines)
         {
-            if (l.Contains("="))
-            {
-                dict.Add(l.Split("=")[0], l.Split("=")[1]);
-            }
+            var parts = l.Split('=');
+            if (parts.Length == 2)
+                dict[parts[0]] = parts[1];
         }
 
-        File.WriteAllText(Path.Join(OUTPUT_DIR, $"{name}.json"), JsonConvert.SerializeObject(dict, Formatting.Indented));
-        v = lines.Count();
+        File.WriteAllText(Path.Combine(OUTPUT_DIR, $"{fileName}.json"),
+            JsonConvert.SerializeObject(dict, Formatting.Indented));
+
         var sb = new System.Text.StringBuilder();
-        for (int i = 0; i < v; i++)
+        foreach (var line in lines)
         {
-            if (lines[i] == ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-            {
-                sb.Append(lines[i].ToString());
-                v = i;
-                break;
-            }
-
-            if (!jsonlines.Contains(lines[i]))
-            {
-
-                    sb.Append(lines[i].ToString() + "\n");
-            }
+            if (!jsonlines.Contains(line) && !line.Contains(">>>>>>>>>>>>>>>>>>"))
+                sb.AppendLine(line);
         }
 
-        File.WriteAllText(Path.Join(OUTPUT_DIR, $"{name}.txt"), sb.ToString());
-
-
+        File.WriteAllText(Path.Combine(OUTPUT_DIR, $"{fileName}.txt"), sb.ToString());
     }
-    if(name != "Adventure_language" && name != "ui_language")
-    { 
-    File.WriteAllText(Path.Join(OUTPUT_DIR, $"{name}.txt"), text);
+    else
+    {
+        File.WriteAllText(Path.Combine(OUTPUT_DIR, $"{fileName}.txt"), text);
     }
 }
 
